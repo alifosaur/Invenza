@@ -17,6 +17,7 @@ import ReceiptsPage from './pages/ReceiptsPage';
 import DeliveriesPage from './pages/DeliveriesPage';
 import TransfersPage from './pages/TransfersPage';
 import AdjustmentsPage from './pages/AdjustmentsPage';
+import OperationDetailPage from './pages/OperationDetailPage';
 import MoveHistoryPage from './pages/MoveHistoryPage';
 import WarehousesPage from './pages/settings/WarehousesPage';
 import LocationsPage from './pages/settings/LocationsPage';
@@ -74,6 +75,8 @@ export default function App() {
             <Route path="deliveries" element={<DeliveriesPage />} />
             <Route path="transfers" element={<TransfersPage />} />
             <Route path="adjustments" element={<AdjustmentsPage />} />
+            <Route path="operations/new" element={<OperationDetailPage />} />
+            <Route path="operations/:id" element={<OperationDetailPage />} />
             <Route path="move-history" element={<MoveHistoryPage />} />
             <Route path="settings/warehouses" element={<WarehousesPage />} />
             <Route path="settings/locations" element={<LocationsPage />} />

@@ -1,12 +1,8 @@
-/**
- * Shared Operations List Page
- * Used by Receipts, Deliveries, Transfers, Adjustments
- */
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { operationApi } from '../api/client';
-import { Plus, Search, CheckCircle, XCircle, Eye, LayoutGrid, List } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, LayoutGrid, List } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import OperationFormModal from './OperationFormModal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
@@ -33,7 +29,7 @@ function KanbanView({ items, onValidate, onCancel, onRowClick }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {grouped[col].map((op) => (
-              <div key={op.id} className="card hover-card" onClick={() => onRowClick(op)} style={{ padding: 'var(--space-4)', cursor: 'pointer' }}>
+              <div key={op.id} className="card hover-card" onClick={() => onRowClick(op.id)} style={{ padding: 'var(--space-4)', cursor: 'pointer' }}>
                 <div style={{ fontWeight: 600, marginBottom: 4, fontSize: '0.875rem', fontFamily: 'var(--font-mono)' }}>
                   {op.reference}
                 </div>
@@ -62,12 +58,12 @@ function KanbanView({ items, onValidate, onCancel, onRowClick }) {
 
 export default function OperationsListPage({ type, title, subtitle, icon: Icon }) {
   const { isManager } = useAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [view, setView] = useState('list'); // 'list' | 'kanban'
-  const [modal, setModal] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const PAGE_SIZE = 20;
@@ -134,7 +130,7 @@ export default function OperationsListPage({ type, title, subtitle, icon: Icon }
           >
             <LayoutGrid size={16} />
           </button>
-          <button className="btn btn-primary" onClick={() => setModal(true)}>
+          <button className="btn btn-primary" onClick={() => navigate(`/operations/new?type=${type}`)}>
             <Plus size={16} /> New {title.replace(/s$/, '')}
           </button>
         </div>
@@ -162,7 +158,7 @@ export default function OperationsListPage({ type, title, subtitle, icon: Icon }
       </div>
 
       {view === 'kanban' ? (
-        <KanbanView items={items} onValidate={handleValidate} onCancel={handleCancel} onRowClick={setModal} />
+        <KanbanView items={items} onValidate={handleValidate} onCancel={handleCancel} onRowClick={(id) => navigate(`/operations/${id}`)} />
       ) : (
         <>
           <div className="table-container">
@@ -191,7 +187,7 @@ export default function OperationsListPage({ type, title, subtitle, icon: Icon }
                 </thead>
                 <tbody>
                   {items.map((op) => (
-                    <tr key={op.id} onClick={() => setModal(op)} style={{ cursor: 'pointer' }} className="hover-row">
+                    <tr key={op.id} onClick={() => navigate(`/operations/${op.id}`)} style={{ cursor: 'pointer' }} className="hover-row">
                       <td>
                         <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--brand-primary-light)' }}>
                           {op.reference}
@@ -245,15 +241,6 @@ export default function OperationsListPage({ type, title, subtitle, icon: Icon }
             </div>
           )}
         </>
-      )}
-
-      {modal && (
-        <OperationFormModal
-          type={type}
-          operation={modal === true ? null : modal}
-          onClose={() => setModal(false)}
-          onSaved={load}
-        />
       )}
     </div>
   );
