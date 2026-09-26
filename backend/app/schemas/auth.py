@@ -8,7 +8,7 @@ from app.models.user import UserRole
 
 # ── Password validation regex ──────────────────────────────────────────────
 PASSWORD_REGEX = re.compile(
-    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?]).{8,}$"
+    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*[^a-zA-Z0-9]).{8,}$"
 )
 LOGIN_ID_REGEX = re.compile(r"^[a-zA-Z0-9_]{6,12}$")
 
