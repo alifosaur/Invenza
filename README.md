@@ -34,7 +34,7 @@ The easiest way to run the entire stack is with Docker Compose. This will spin u
    ```
 
 2. **Access the application**
-   - **Frontend:** http://localhost:5173
+   - **Frontend:** http://localhost:5174
    - **Backend API Docs:** http://localhost:8000/docs
    - **Database:** `localhost:5432` (User: `postgres`, Password: `password`, DB: `invenza`)
 

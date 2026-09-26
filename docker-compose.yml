@@ -29,7 +29,7 @@ services:
       - SECRET_KEY=change-this-to-a-random-secret-key-in-production
       - ALGORITHM=HS256
       - APP_ENV=development
-      - FRONTEND_URL=http://localhost:5173
+      - FRONTEND_URL=http://localhost:5174
       # Add SMTP settings here if needed
     depends_on:
       db:
@@ -41,7 +41,7 @@ services:
       # For production, you might pass args for VITE_API_URL if needed
     container_name: invenza-frontend
     ports:
-      - "5173:80"
+      - "5174:80"
     depends_on:
       - backend
 
