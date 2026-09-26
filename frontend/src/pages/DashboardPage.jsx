@@ -1,161 +1,172 @@
-import { useState, useEffect, useRef } from 'react';
-import { dashboardApi } from '../api/client';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Package, AlertTriangle, ShoppingCart, Truck,
-  ArrowLeftRight, Clock, TrendingUp, RefreshCw,
+  ArrowDownToLine, ArrowUpFromLine, Filter, Search
 } from 'lucide-react';
-import toast from 'react-hot-toast';
-
-const WS_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000')
-  .replace('http', 'ws') + '/ws/dashboard';
-
-const KPI_CARDS = [
-  { key: 'total_products', label: 'Total Products', icon: Package, color: 'hsl(231,100%,65%)' },
-  { key: 'low_stock_count', label: 'Low Stock', icon: AlertTriangle, color: 'hsl(38,95%,55%)' },
-  { key: 'out_of_stock_count', label: 'Out of Stock', icon: AlertTriangle, color: 'hsl(0,80%,60%)' },
-  { key: 'pending_receipts', label: 'Pending Receipts', icon: ShoppingCart, color: 'hsl(168,85%,48%)' },
-  { key: 'pending_deliveries', label: 'Pending Deliveries', icon: Truck, color: 'hsl(271,90%,65%)' },
-  { key: 'scheduled_transfers', label: 'Scheduled Transfers', icon: ArrowLeftRight, color: 'hsl(211,95%,60%)' },
-  { key: 'late_receipts', label: 'Late Receipts', icon: Clock, color: 'hsl(0,80%,60%)' },
-  { key: 'late_deliveries', label: 'Late Deliveries', icon: Clock, color: 'hsl(0,80%,60%)' },
-];
-
-function KPICard({ label, value, icon: Icon, color, loading }) {
-  return (
-    <div className="kpi-card">
-      <div className="kpi-icon" style={{ background: `${color}18` }}>
-        <Icon size={20} color={color} />
-      </div>
-      {loading ? (
-        <div className="skeleton" style={{ height: 40, width: 80, marginBottom: 8, borderRadius: 8 }} />
-      ) : (
-        <div className="kpi-value">{value ?? '—'}</div>
-      )}
-      <div className="kpi-label">{label}</div>
-    </div>
-  );
-}
 
 export default function DashboardPage() {
-  const [kpis, setKpis] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const wsRef = useRef(null);
-
-  const fetchKpis = async () => {
-    try {
-      const { data } = await dashboardApi.kpis();
-      setKpis(data);
-    } catch {
-      toast.error('Failed to load dashboard');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchKpis();
-
-    // WebSocket for live updates
-    const connect = () => {
-      try {
-        wsRef.current = new WebSocket(WS_URL);
-        wsRef.current.onmessage = (e) => {
-          const msg = JSON.parse(e.data);
-          if (msg.event === 'operation_validated') fetchKpis();
-        };
-        wsRef.current.onclose = () => {
-          // Reconnect after 3s
-          setTimeout(connect, 3000);
-        };
-      } catch { /* WS not available in dev without backend */ }
-    };
-    connect();
-    return () => wsRef.current?.close();
-  }, []);
+  const navigate = useNavigate();
+  
+  // Dashboard filters state
+  const [filters, setFilters] = useState({
+    documentType: 'all',
+    status: 'all',
+    warehouse: 'all',
+    category: 'all',
+  });
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">Real-time inventory overview</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <div style={{
-            width: 8, height: 8, borderRadius: '50%',
-            background: 'var(--color-success)',
-            animation: 'pulse-glow 2s infinite',
-          }} />
-          <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Live</span>
-          <button className="btn btn-secondary btn-sm" onClick={fetchKpis}>
-            <RefreshCw size={14} /> Refresh
-          </button>
+          <p className="page-subtitle">Overview of your inventory operations</p>
         </div>
       </div>
 
-      {/* KPI Grid */}
-      <div className="kpi-grid" style={{ marginBottom: 'var(--space-8)' }}>
-        {KPI_CARDS.map(({ key, label, icon, color }) => (
-          <KPICard
-            key={key}
-            label={label}
-            value={kpis?.[key]}
-            icon={icon}
-            color={color}
-            loading={loading}
-          />
-        ))}
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid-2" style={{ gap: 'var(--space-4)' }}>
-        <SummaryCard
-          title="Receipts Overview"
-          icon={ShoppingCart}
-          color="hsl(168,85%,48%)"
-          items={[
-            { label: 'To Receive', value: kpis?.pending_receipts ?? '—' },
-            { label: 'Late', value: kpis?.late_receipts ?? '—', warn: (kpis?.late_receipts || 0) > 0 },
-          ]}
-          loading={loading}
-        />
-        <SummaryCard
-          title="Deliveries Overview"
-          icon={Truck}
-          color="hsl(271,90%,65%)"
-          items={[
-            { label: 'To Deliver', value: kpis?.pending_deliveries ?? '—' },
-            { label: 'Late', value: kpis?.late_deliveries ?? '—', warn: (kpis?.late_deliveries || 0) > 0 },
-          ]}
-          loading={loading}
-        />
-      </div>
-    </div>
-  );
-}
-
-function SummaryCard({ title, icon: Icon, color, items, loading }) {
-  return (
-    <div className="card" style={{ background: 'var(--bg-card)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' }}>
-        <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon size={18} color={color} />
-        </div>
-        <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>{title}</h3>
-      </div>
-      <div style={{ display: 'flex', gap: 'var(--space-6)' }}>
-        {items.map(({ label, value, warn }) => (
-          <div key={label}>
-            {loading ? (
-              <div className="skeleton" style={{ height: 30, width: 50, marginBottom: 6, borderRadius: 6 }} />
-            ) : (
-              <div style={{ fontSize: '1.75rem', fontWeight: 700, color: warn ? 'var(--color-error)' : 'var(--text-primary)', lineHeight: 1 }}>
-                {value}
-              </div>
-            )}
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 500 }}>{label}</div>
+      {/* ── Filters ── */}
+      <div className="card" style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-4)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.875rem' }}>
+            <Filter size={16} /> Filters
           </div>
-        ))}
+          
+          <select 
+            className="form-select" 
+            style={{ width: 'auto', minWidth: 160 }}
+            value={filters.documentType}
+            onChange={(e) => setFilters({ ...filters, documentType: e.target.value })}
+          >
+            <option value="all">All Document Types</option>
+            <option value="receipt">Receipts</option>
+            <option value="delivery">Deliveries</option>
+            <option value="internal">Internal Transfers</option>
+            <option value="adjustment">Adjustments</option>
+          </select>
+
+          <select 
+            className="form-select" 
+            style={{ width: 'auto', minWidth: 160 }}
+            value={filters.status}
+            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+          >
+            <option value="all">All Statuses</option>
+            <option value="draft">Draft</option>
+            <option value="waiting">Waiting</option>
+            <option value="ready">Ready</option>
+            <option value="done">Done</option>
+            <option value="canceled">Canceled</option>
+          </select>
+
+          <select 
+            className="form-select" 
+            style={{ width: 'auto', minWidth: 160 }}
+            value={filters.warehouse}
+            onChange={(e) => setFilters({ ...filters, warehouse: e.target.value })}
+          >
+            <option value="all">All Warehouses / Locations</option>
+            <option value="main">Main Warehouse</option>
+          </select>
+
+          <select 
+            className="form-select" 
+            style={{ width: 'auto', minWidth: 160 }}
+            value={filters.category}
+            onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+          >
+            <option value="all">All Product Categories</option>
+          </select>
+        </div>
+      </div>
+
+      {/* ── Summary Cards ── */}
+      <div className="grid-2">
+        {/* Receipt Card */}
+        <div 
+          className="card" 
+          style={{ cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column' }}
+          onClick={() => navigate('/receipts')}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-6)' }}>
+            <div style={{ 
+              width: 40, height: 40, borderRadius: 'var(--radius-md)', 
+              background: 'hsla(231,100%,65%,0.15)', color: 'var(--brand-primary)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <ArrowDownToLine size={20} />
+            </div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Receipts</h2>
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '3rem', fontWeight: 800, lineHeight: 1, marginBottom: 'var(--space-2)' }}>
+              4
+            </div>
+            <div style={{ fontSize: '1.125rem', color: 'var(--text-secondary)', fontWeight: 500, marginBottom: 'var(--space-6)' }}>
+              to receive
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 'var(--space-4)', borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-4)' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-error)' }}>1</div>
+              <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Late</div>
+            </div>
+            <div style={{ width: 1, background: 'var(--border-subtle)' }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>6</div>
+              <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>operations</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Delivery Card */}
+        <div 
+          className="card" 
+          style={{ cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column' }}
+          onClick={() => navigate('/deliveries')}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-6)' }}>
+            <div style={{ 
+              width: 40, height: 40, borderRadius: 'var(--radius-md)', 
+              background: 'hsla(168,85%,48%,0.15)', color: 'var(--color-success)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <ArrowUpFromLine size={20} />
+            </div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Deliveries</h2>
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '3rem', fontWeight: 800, lineHeight: 1, marginBottom: 'var(--space-2)' }}>
+              4
+            </div>
+            <div style={{ fontSize: '1.125rem', color: 'var(--text-secondary)', fontWeight: 500, marginBottom: 'var(--space-6)' }}>
+              to Deliver
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 'var(--space-4)', borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-4)' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-error)' }}>1</div>
+              <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Late</div>
+            </div>
+            <div style={{ width: 1, background: 'var(--border-subtle)' }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-warning)' }}>2</div>
+              <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>waiting</div>
+            </div>
+            <div style={{ width: 1, background: 'var(--border-subtle)' }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>6</div>
+              <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>operations</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

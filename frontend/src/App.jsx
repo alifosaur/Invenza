@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import Sidebar from './components/Sidebar';
+import Topnav from './components/Topnav';
 
 // Auth pages
 import LoginPage from './pages/auth/LoginPage';
@@ -25,7 +25,7 @@ import ProfilePage from './pages/ProfilePage';
 function AppLayout() {
   return (
     <div className="app-layout">
-      <Sidebar />
+      <Topnav />
       <div className="main-content">
         <div className="page-container">
           <Outlet />
