@@ -27,3 +27,7 @@ class Product(Base):
 
     category: Mapped["Category"] = relationship("Category", back_populates="products")
     stock_entries: Mapped[list["Stock"]] = relationship("Stock", back_populates="product")
+
+    @property
+    def current_stock(self) -> float:
+        return sum(float(s.on_hand) for s in self.stock_entries) if self.stock_entries else 0.0

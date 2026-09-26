@@ -24,6 +24,8 @@ services:
     container_name: invenza-backend
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend:/app
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/invenza
       - SECRET_KEY=change-this-to-a-random-secret-key-in-production

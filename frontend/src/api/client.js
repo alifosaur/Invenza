@@ -109,6 +109,7 @@ export const productApi = {
 // ── Stock ─────────────────────────────────────────────────────
 export const stockApi = {
   list: (params) => api.get('/stock', { params }),
+  update: (id, data) => api.put(`/stock/${id}`, data),
 };
 
 // ── Operations ────────────────────────────────────────────────

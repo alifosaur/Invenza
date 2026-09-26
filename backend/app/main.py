@@ -2,7 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.routes import auth, warehouses, products, operations
+from app.api.routes import auth, warehouses, products, operations, dashboard
 from app.services.websocket import ws_manager
 
 app = FastAPI(
@@ -16,7 +16,7 @@ app = FastAPI(
 # ── CORS ───────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "http://localhost:5173", "http://localhost:3000"],
+    allow_origins=[settings.FRONTEND_URL, "http://localhost:5173", "http://localhost:5174", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -27,6 +27,7 @@ app.include_router(auth.router)
 app.include_router(warehouses.router)
 app.include_router(products.router)
 app.include_router(operations.router)
+app.include_router(dashboard.router)
 
 
 # ── WebSocket ──────────────────────────────────────────────────────────────

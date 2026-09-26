@@ -46,7 +46,10 @@ async def list_operations(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    query = select(Operation)
+    query = select(Operation).options(
+        selectinload(Operation.from_location),
+        selectinload(Operation.to_location)
+    )
     if type:
         query = query.where(Operation.type == type)
     if status:
@@ -274,9 +277,12 @@ async def list_stock(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
+    from app.models.product import Product
+    from app.models.warehouse import Location
+
     query = select(Stock).options(
-        selectinload(Stock.product).selectinload("category"),
-        selectinload(Stock.location).selectinload("warehouse"),
+        selectinload(Stock.product).selectinload(Product.category),
+        selectinload(Stock.location).selectinload(Location.warehouse),
     )
     if location_id:
         query = query.where(Stock.location_id == location_id)
@@ -300,6 +306,27 @@ async def list_stock(
         }
         for s in stocks
     ]
+
+
+@router.put("/stock/{stock_id}")
+async def update_stock(
+    stock_id: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Stock).where(Stock.id == stock_id))
+    stock = result.scalar_one_or_none()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+
+    if "on_hand" in payload:
+        stock.on_hand = float(payload["on_hand"])
+    if "per_unit_cost" in payload:
+        stock.per_unit_cost = float(payload["per_unit_cost"])
+
+    await db.flush()
+    return {"status": "success", "on_hand": float(stock.on_hand), "per_unit_cost": float(stock.per_unit_cost)}
 
 
 # ── Move history ───────────────────────────────────────────────────────────

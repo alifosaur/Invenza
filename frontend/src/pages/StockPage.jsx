@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { stockApi, warehouseApi } from '../api/client';
-import { Search, Boxes, AlertTriangle } from 'lucide-react';
+import { Search, Boxes, Edit2, Check, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function StockPage() {
@@ -11,6 +11,12 @@ export default function StockPage() {
   const [search, setSearch] = useState('');
   const [filterWarehouse, setFilterWarehouse] = useState('');
   const [filterLocation, setFilterLocation] = useState('');
+  
+  const [sortField, setSortField] = useState('product.name');
+  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
+
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({ on_hand: '', per_unit_cost: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -36,17 +42,65 @@ export default function StockPage() {
     }
   }, [filterWarehouse]);
 
+  const handleEditClick = (stock) => {
+    setEditingId(stock.id);
+    setEditForm({
+      on_hand: stock.on_hand,
+      per_unit_cost: stock.per_unit_cost,
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const handleSaveEdit = async (id) => {
+    try {
+      await stockApi.update(id, {
+        on_hand: Number(editForm.on_hand),
+        per_unit_cost: Number(editForm.per_unit_cost)
+      });
+      toast.success('Stock updated successfully');
+      setEditingId(null);
+      load();
+    } catch (err) {
+      toast.error('Failed to update stock');
+    }
+  };
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
   const filtered = stocks.filter((s) => {
     const q = search.toLowerCase();
     return !q || s.product?.name?.toLowerCase().includes(q) || s.product?.sku?.toLowerCase().includes(q);
   });
 
-  const getStockStatus = (s) => {
-    if (s.on_hand <= 0) return { label: 'Out of Stock', cls: 'badge-out', color: 'var(--color-error)' };
-    if (s.product?.reorder_threshold && s.on_hand <= s.product.reorder_threshold)
-      return { label: 'Low Stock', cls: 'badge-waiting', color: 'var(--color-warning)' };
-    return { label: 'In Stock', cls: 'badge-in', color: 'var(--color-success)' };
-  };
+  const sortedStocks = [...filtered].sort((a, b) => {
+    let valA = a;
+    let valB = b;
+
+    const keys = sortField.split('.');
+    for (const key of keys) {
+      valA = valA ? valA[key] : '';
+      valB = valB ? valB[key] : '';
+    }
+
+    if (typeof valA === 'string') {
+      valA = valA.toLowerCase();
+      valB = valB.toLowerCase();
+    }
+
+    if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+    if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+    return 0;
+  });
 
   return (
     <div>
@@ -94,44 +148,104 @@ export default function StockPage() {
           <div style={{ padding: 'var(--space-8)', textAlign: 'center' }}>
             <div className="spinner" style={{ margin: 'auto' }} />
           </div>
-        ) : filtered.length === 0 ? (
+        ) : sortedStocks.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon"><Boxes size={32} /></div>
             <h3>No stock records</h3>
             <p>Validate a receipt to populate stock levels</p>
           </div>
         ) : (
-          <table>
+          <table className="dense-table" style={{ fontSize: '0.9rem' }}>
             <thead>
               <tr>
-                <th>Product</th>
-                <th>SKU</th>
-                <th>Location</th>
-                <th style={{ textAlign: 'right' }}>On Hand</th>
-                <th style={{ textAlign: 'right' }}>Reserved</th>
-                <th style={{ textAlign: 'right' }}>Free to Use</th>
-                <th style={{ textAlign: 'right' }}>Unit Cost (Rs)</th>
-                <th>Status</th>
+                <th onClick={() => handleSort('product.name')} style={{ cursor: 'pointer' }}>
+                  Product {sortField === 'product.name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                </th>
+                <th onClick={() => handleSort('location.name')} style={{ cursor: 'pointer' }}>
+                  Location {sortField === 'location.name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                </th>
+                <th onClick={() => handleSort('per_unit_cost')} style={{ cursor: 'pointer', textAlign: 'right' }}>
+                  Per Unit Cost {sortField === 'per_unit_cost' && (sortOrder === 'asc' ? '↑' : '↓')}
+                </th>
+                <th onClick={() => handleSort('on_hand')} style={{ cursor: 'pointer', textAlign: 'right' }}>
+                  On Hand {sortField === 'on_hand' && (sortOrder === 'asc' ? '↑' : '↓')}
+                </th>
+                <th onClick={() => handleSort('free_to_use')} style={{ cursor: 'pointer', textAlign: 'right' }}>
+                  Free to Use {sortField === 'free_to_use' && (sortOrder === 'asc' ? '↑' : '↓')}
+                </th>
+                <th style={{ textAlign: 'center', width: '80px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((s) => {
-                const status = getStockStatus(s);
+              {sortedStocks.map((s) => {
+                const isEditing = editingId === s.id;
+                
                 return (
-                  <tr key={s.id}>
-                    <td style={{ fontWeight: 600 }}>{s.product?.name || '—'}</td>
-                    <td><span className="tag font-mono">{s.product?.sku || '—'}</span></td>
-                    <td>{s.location?.name || '—'}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--text-primary)' }}>{s.on_hand}</td>
-                    <td style={{ textAlign: 'right', color: 'var(--color-warning)' }}>{s.reserved}</td>
-                    <td style={{ textAlign: 'right', color: s.free_to_use > 0 ? 'var(--color-success)' : 'var(--color-error)', fontWeight: 600 }}>
-                      {s.free_to_use}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      {s.per_unit_cost ? `Rs ${parseFloat(s.per_unit_cost).toFixed(2)}` : '—'}
-                    </td>
+                  <tr key={s.id} className={isEditing ? 'editing-row' : ''}>
                     <td>
-                      <span className={`badge ${status.cls}`}>{status.label}</span>
+                      <div style={{ fontWeight: 600 }}>{s.product?.name || '—'}</div>
+                      <div className="text-muted font-mono" style={{ fontSize: '0.75rem' }}>{s.product?.sku}</div>
+                    </td>
+                    <td>{s.location?.name || '—'}</td>
+                    
+                    <td style={{ textAlign: 'right' }}>
+                      {isEditing ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                          <span className="text-muted">Rs</span>
+                          <input 
+                            type="number" 
+                            className="form-input form-input-sm" 
+                            style={{ width: '80px', padding: '4px 8px', fontSize: '0.9rem' }}
+                            value={editForm.per_unit_cost}
+                            onChange={(e) => setEditForm({...editForm, per_unit_cost: e.target.value})}
+                            step="0.01"
+                            min="0"
+                          />
+                        </div>
+                      ) : (
+                        <span>{s.per_unit_cost ? `Rs ${parseFloat(s.per_unit_cost).toFixed(2)}` : '—'}</span>
+                      )}
+                    </td>
+                    
+                    <td style={{ textAlign: 'right' }}>
+                      {isEditing ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                          <input 
+                            type="number" 
+                            className="form-input form-input-sm" 
+                            style={{ width: '80px', padding: '4px 8px', fontSize: '0.9rem' }}
+                            value={editForm.on_hand}
+                            onChange={(e) => setEditForm({...editForm, on_hand: e.target.value})}
+                            step="0.01"
+                          />
+                          <span className="text-muted" style={{ fontSize: '0.75rem' }}>{s.product?.uom}</span>
+                        </div>
+                      ) : (
+                        <span style={{ fontWeight: 600 }}>{s.on_hand} <span className="text-muted" style={{ fontSize: '0.75rem', fontWeight: 400 }}>{s.product?.uom}</span></span>
+                      )}
+                    </td>
+                    
+                    <td style={{ textAlign: 'right' }}>
+                      <span style={{ fontWeight: 600, color: s.free_to_use > 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
+                        {s.free_to_use} <span className="text-muted" style={{ fontSize: '0.75rem', fontWeight: 400 }}>{s.product?.uom}</span>
+                      </span>
+                    </td>
+                    
+                    <td style={{ textAlign: 'center' }}>
+                      {isEditing ? (
+                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                          <button className="btn btn-icon btn-ghost" onClick={() => handleSaveEdit(s.id)} style={{ color: 'var(--color-success)', padding: '4px' }}>
+                            <Check size={16} />
+                          </button>
+                          <button className="btn btn-icon btn-ghost" onClick={handleCancelEdit} style={{ color: 'var(--color-error)', padding: '4px' }}>
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button className="btn btn-icon btn-ghost" onClick={() => handleEditClick(s)} data-tooltip="Edit Stock">
+                          <Edit2 size={15} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

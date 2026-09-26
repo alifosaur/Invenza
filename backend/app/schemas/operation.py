@@ -67,6 +67,11 @@ class OperationOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class LocationBasicOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    model_config = {"from_attributes": True}
+
 class OperationListItem(BaseModel):
     id: uuid.UUID
     reference: str
@@ -75,6 +80,8 @@ class OperationListItem(BaseModel):
     schedule_date: Optional[date] = None
     status: OperationStatus
     created_at: datetime
+    from_location: Optional[LocationBasicOut] = None
+    to_location: Optional[LocationBasicOut] = None
 
     model_config = {"from_attributes": True}
 

@@ -50,6 +50,7 @@ class ProductOut(BaseModel):
     sku: str
     uom: str
     reorder_threshold: Optional[float] = None
+    current_stock: float = 0.0
     category: Optional[CategoryOut] = None
 
     model_config = {"from_attributes": True}

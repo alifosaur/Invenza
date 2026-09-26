@@ -4,4 +4,3 @@ __pycache__/
 venv/
 .env
 .pytest_cache/
-alembic.ini

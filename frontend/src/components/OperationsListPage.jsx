@@ -16,7 +16,7 @@ function StatusBadge({ status }) {
   return <span className={`badge badge-${status}`}>{status}</span>;
 }
 
-function KanbanView({ items, onValidate, onCancel }) {
+function KanbanView({ items, onValidate, onCancel, onRowClick }) {
   const columns = STATUS_ORDER.filter((s) => s !== 'canceled');
   const grouped = Object.fromEntries(columns.map((s) => [s, items.filter((i) => i.status === s)]));
 
@@ -33,7 +33,7 @@ function KanbanView({ items, onValidate, onCancel }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {grouped[col].map((op) => (
-              <div key={op.id} className="card" style={{ padding: 'var(--space-4)', cursor: 'default' }}>
+              <div key={op.id} className="card hover-card" onClick={() => onRowClick(op)} style={{ padding: 'var(--space-4)', cursor: 'pointer' }}>
                 <div style={{ fontWeight: 600, marginBottom: 4, fontSize: '0.875rem', fontFamily: 'var(--font-mono)' }}>
                   {op.reference}
                 </div>
@@ -42,7 +42,7 @@ function KanbanView({ items, onValidate, onCancel }) {
                   {op.schedule_date && <> · {op.schedule_date}</>}
                 </div>
                 {col === 'ready' && (
-                  <button className="btn btn-success btn-sm w-full" onClick={() => onValidate(op.id)} style={{ justifyContent: 'center' }}>
+                  <button className="btn btn-success btn-sm w-full" onClick={(e) => { e.stopPropagation(); onValidate(op.id); }} style={{ justifyContent: 'center' }}>
                     <CheckCircle size={13} /> Validate
                   </button>
                 )}
@@ -162,7 +162,7 @@ export default function OperationsListPage({ type, title, subtitle, icon: Icon }
       </div>
 
       {view === 'kanban' ? (
-        <KanbanView items={items} onValidate={handleValidate} onCancel={handleCancel} />
+        <KanbanView items={items} onValidate={handleValidate} onCancel={handleCancel} onRowClick={setModal} />
       ) : (
         <>
           <div className="table-container">
@@ -181,21 +181,24 @@ export default function OperationsListPage({ type, title, subtitle, icon: Icon }
                 <thead>
                   <tr>
                     <th>Reference</th>
+                    <th>From</th>
+                    <th>To</th>
                     <th>Contact</th>
                     <th>Schedule Date</th>
                     <th>Status</th>
-                    <th>Created</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((op) => (
-                    <tr key={op.id}>
+                    <tr key={op.id} onClick={() => setModal(op)} style={{ cursor: 'pointer' }} className="hover-row">
                       <td>
                         <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--brand-primary-light)' }}>
                           {op.reference}
                         </span>
                       </td>
+                      <td>{op.type === 'IN' ? 'Vendor' : op.from_location?.name || '—'}</td>
+                      <td>{op.type === 'OUT' ? 'Customer' : op.to_location?.name || '—'}</td>
                       <td>{op.contact || <span className="text-muted">—</span>}</td>
                       <td>
                         {op.schedule_date ? (
@@ -205,13 +208,10 @@ export default function OperationsListPage({ type, title, subtitle, icon: Icon }
                         ) : <span className="text-muted">—</span>}
                       </td>
                       <td><StatusBadge status={op.status} /></td>
-                      <td className="text-muted text-sm">
-                        {format(new Date(op.created_at), 'dd MMM yyyy')}
-                      </td>
                       <td>
                         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
                           {canValidate(op.status) && (
-                            <button className="btn btn-success btn-sm" onClick={() => handleValidate(op.id)}>
+                            <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); handleValidate(op.id); }}>
                               <CheckCircle size={13} /> Validate
                             </button>
                           )}
@@ -221,7 +221,7 @@ export default function OperationsListPage({ type, title, subtitle, icon: Icon }
                             </span>
                           )}
                           {canCancel(op.status) && (
-                            <button className="btn btn-ghost btn-sm" onClick={() => handleCancel(op.id)} style={{ color: 'var(--text-muted)' }}>
+                            <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); handleCancel(op.id); }} style={{ color: 'var(--text-muted)' }}>
                               <XCircle size={13} />
                             </button>
                           )}
@@ -250,6 +250,7 @@ export default function OperationsListPage({ type, title, subtitle, icon: Icon }
       {modal && (
         <OperationFormModal
           type={type}
+          operation={modal === true ? null : modal}
           onClose={() => setModal(false)}
           onSaved={load}
         />

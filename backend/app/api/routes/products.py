@@ -44,7 +44,7 @@ async def list_products(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    query = select(Product).options(selectinload(Product.category))
+    query = select(Product).options(selectinload(Product.category), selectinload(Product.stock_entries))
     if search:
         query = query.where(
             Product.name.ilike(f"%{search}%") | Product.sku.ilike(f"%{search}%")
@@ -98,7 +98,7 @@ async def get_product(
     _: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Product).options(selectinload(Product.category)).where(Product.id == product_id)
+        select(Product).options(selectinload(Product.category), selectinload(Product.stock_entries)).where(Product.id == product_id)
     )
     product = result.scalar_one_or_none()
     if not product:
