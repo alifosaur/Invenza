@@ -19,3 +19,4 @@ frontend/.env.production
 *.log
 .idea/
 .vscode/settings.json
+
