@@ -113,47 +113,53 @@ export default function WarehousesPage() {
         )}
       </div>
 
-      {loading ? (
-        <div style={{ padding: 'var(--space-8)', textAlign: 'center' }}><div className="spinner" style={{ margin: 'auto' }} /></div>
-      ) : warehouses.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon"><Warehouse size={32} /></div>
-          <h3>No warehouses yet</h3>
-          <p>Add your first warehouse to start configuring locations</p>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 'var(--space-4)' }}>
-          {warehouses.map((w) => (
-            <div key={w.id} className="card" style={{ position: 'relative', overflow: 'hidden' }}>
-              <div style={{
-                position: 'absolute', top: 0, left: 0, right: 0, height: 3,
-                background: 'var(--gradient-brand)',
-              }} />
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', paddingTop: 'var(--space-2)' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-1)' }}>
-                    <span className="tag font-mono" style={{ background: 'hsla(231,100%,65%,0.1)', color: 'var(--brand-primary-light)', border: '1px solid hsla(231,100%,65%,0.2)' }}>
+      <div className="table-container">
+        {loading ? (
+          <div style={{ padding: 'var(--space-8)', textAlign: 'center' }}><div className="spinner" style={{ margin: 'auto' }} /></div>
+        ) : warehouses.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon"><Warehouse size={32} /></div>
+            <h3>No warehouses yet</h3>
+            <p>Add your first warehouse to start configuring locations</p>
+          </div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Short Code</th>
+                <th>Name</th>
+                <th>Address</th>
+                {isManager && <th style={{ textAlign: 'right' }}>Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {warehouses.map((w) => (
+                <tr key={w.id} onClick={() => isManager && setModal(w)} style={{ cursor: isManager ? 'pointer' : 'default' }} className="hover-row">
+                  <td>
+                    <span className="badge font-mono" style={{ background: 'hsla(231,100%,65%,0.1)', color: 'var(--brand-primary-light)', border: '1px solid hsla(231,100%,65%,0.2)' }}>
                       {w.short_code}
                     </span>
-                  </div>
-                  <h3 style={{ fontSize: '1.125rem', marginBottom: 4 }}>{w.name}</h3>
-                  <p className="text-muted text-sm">{w.address || 'No address specified'}</p>
-                </div>
-                {isManager && (
-                  <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
-                    <button className="btn btn-icon btn-ghost btn-sm" onClick={() => setModal(w)} data-tooltip="Edit">
-                      <Pencil size={14} />
-                    </button>
-                    <button className="btn btn-icon btn-ghost btn-sm" onClick={() => deleteWarehouse(w.id)} style={{ color: 'var(--color-error)' }} data-tooltip="Delete">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+                  </td>
+                  <td style={{ fontWeight: 500 }}>{w.name}</td>
+                  <td className="text-muted">{w.address || '—'}</td>
+                  {isManager && (
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: 'var(--space-1)', justifyContent: 'flex-end' }}>
+                        <button className="btn btn-icon btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setModal(w); }} data-tooltip="Edit">
+                          <Pencil size={14} />
+                        </button>
+                        <button className="btn btn-icon btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); deleteWarehouse(w.id); }} style={{ color: 'var(--color-error)' }} data-tooltip="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
 
       {modal && (
         <WarehouseModal

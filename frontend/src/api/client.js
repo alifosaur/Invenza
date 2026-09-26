@@ -80,6 +80,7 @@ export const authApi = {
   requestOtp: (email) => api.post('/auth/otp/request', { email }),
   verifyOtp: (data) => api.post('/auth/otp/verify', data),
   resetPassword: (data) => api.post('/auth/password/reset', data),
+  changePassword: (data) => api.post('/auth/password/change', data),
 };
 
 // ── Warehouses & Locations ────────────────────────────────────
@@ -104,6 +105,11 @@ export const productApi = {
   delete: (id) => api.delete(`/products/${id}`),
   listCategories: () => api.get('/categories'),
   createCategory: (data) => api.post('/categories', data),
+  exportExcel: (params) => api.get('/products/export/excel', { params, responseType: 'blob' }),
+  downloadTemplate: () => api.get('/products/template', { responseType: 'blob' }),
+  importExcel: (formData) => api.post('/products/import/excel', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
 };
 
 // ── Stock ─────────────────────────────────────────────────────

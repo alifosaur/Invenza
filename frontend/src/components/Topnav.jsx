@@ -91,7 +91,9 @@ export default function Topnav() {
             <NavLink to="/" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               Dashboard
             </NavLink>
-            <Dropdown label="Operations" items={OPERATIONS_NAV} isActive={isOpActive} />
+            <NavLink to="/operations" className={({ isActive }) => `nav-item ${(isActive || isOpActive) ? 'active' : ''}`}>
+              Operations
+            </NavLink>
             <NavLink to="/products" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               Products
             </NavLink>

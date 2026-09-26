@@ -165,28 +165,32 @@ export default function LocationsPage() {
           <table>
             <thead>
               <tr>
-                <th>Name</th>
                 <th>Short Code</th>
+                <th>Name</th>
                 <th>Warehouse</th>
-                {isManager && <th>Actions</th>}
+                {isManager && <th style={{ textAlign: 'right' }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
               {locations.map((l) => (
-                <tr key={l.id}>
-                  <td style={{ fontWeight: 600 }}>{l.name}</td>
-                  <td><span className="tag font-mono">{l.short_code}</span></td>
+                <tr key={l.id} onClick={() => isManager && setModal(l)} style={{ cursor: isManager ? 'pointer' : 'default' }} className="hover-row">
                   <td>
+                    <span className="badge font-mono" style={{ background: 'hsla(231,100%,65%,0.1)', color: 'var(--brand-primary-light)', border: '1px solid hsla(231,100%,65%,0.2)' }}>
+                      {l.short_code}
+                    </span>
+                  </td>
+                  <td style={{ fontWeight: 500 }}>{l.name}</td>
+                  <td className="text-muted">
                     {warehouses.find((w) => w.id === l.warehouse_id)?.name || '—'}
                   </td>
                   {isManager && (
-                    <td>
-                      <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                        <button className="btn btn-icon btn-ghost" onClick={() => setModal(l)} data-tooltip="Edit">
-                          <Pencil size={15} />
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: 'var(--space-1)', justifyContent: 'flex-end' }}>
+                        <button className="btn btn-icon btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setModal(l); }} data-tooltip="Edit">
+                          <Pencil size={14} />
                         </button>
-                        <button className="btn btn-icon btn-ghost" onClick={() => deleteLocation(l.id)} style={{ color: 'var(--color-error)' }} data-tooltip="Delete">
-                          <Trash2 size={15} />
+                        <button className="btn btn-icon btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); deleteLocation(l.id); }} style={{ color: 'var(--color-error)' }} data-tooltip="Delete">
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>

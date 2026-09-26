@@ -19,8 +19,9 @@ class OperationStats(BaseModel):
 class DashboardStats(BaseModel):
     receipts: OperationStats
     deliveries: OperationStats
+    adjustments: OperationStats
 
-@router.get("/stats", response_model=DashboardStats)
+@router.get("/kpis", response_model=DashboardStats)
 async def get_dashboard_stats(
     db: AsyncSession = Depends(get_db),
     # current_user: User = Depends(get_current_user),
@@ -69,8 +70,10 @@ async def get_dashboard_stats(
         
     receipt_stats = await get_stats_for_type(OperationType.IN)
     delivery_stats = await get_stats_for_type(OperationType.OUT)
+    adjustment_stats = await get_stats_for_type(OperationType.ADJUSTMENT)
     
     return DashboardStats(
         receipts=receipt_stats,
-        deliveries=delivery_stats
+        deliveries=delivery_stats,
+        adjustments=adjustment_stats,
     )

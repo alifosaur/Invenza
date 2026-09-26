@@ -48,7 +48,8 @@ async def list_operations(
 ):
     query = select(Operation).options(
         selectinload(Operation.from_location),
-        selectinload(Operation.to_location)
+        selectinload(Operation.to_location),
+        selectinload(Operation.lines).selectinload(OperationLine.product)
     )
     if type:
         query = query.where(Operation.type == type)

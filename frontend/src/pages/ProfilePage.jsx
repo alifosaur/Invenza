@@ -1,9 +1,19 @@
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User, Mail, Shield, Calendar } from 'lucide-react';
+import { authApi } from '../api/client';
+import { User, Mail, Shield, Calendar, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
 
 export default function ProfilePage() {
   const { user } = useAuth();
+  
+  const [form, setForm] = useState({
+    current_password: '',
+    new_password: '',
+    confirm_password: ''
+  });
+  const [loading, setLoading] = useState(false);
 
   if (!user) return null;
 
@@ -16,6 +26,32 @@ export default function ProfilePage() {
     { icon: Shield, label: 'Role', value: roleLabel, color: roleColor },
     { icon: Calendar, label: 'Member Since', value: format(new Date(user.created_at), 'dd MMM yyyy') },
   ];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (form.new_password !== form.confirm_password) {
+      toast.error('New passwords do not match');
+      return;
+    }
+    if (form.new_password.length < 8) {
+      toast.error('Password must be at least 8 characters');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await authApi.changePassword({
+        current_password: form.current_password,
+        new_password: form.new_password,
+      });
+      toast.success('Password updated successfully');
+      setForm({ current_password: '', new_password: '', confirm_password: '' });
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to change password');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div>
@@ -61,7 +97,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Details card */}
-        <div className="card">
+        <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
           <h3 style={{ fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 'var(--space-5)' }}>
             Account Details
           </h3>
@@ -89,6 +125,52 @@ export default function ProfilePage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Change Password card */}
+        <div className="card">
+          <h3 style={{ fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 'var(--space-5)' }}>
+            Security
+          </h3>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div className="form-group">
+              <label className="form-label required">Current Password</label>
+              <input
+                type="password"
+                className="form-input"
+                value={form.current_password}
+                onChange={(e) => setForm({ ...form, current_password: e.target.value })}
+                required
+              />
+            </div>
+            <div className="grid-2">
+              <div className="form-group">
+                <label className="form-label required">New Password</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  value={form.new_password}
+                  onChange={(e) => setForm({ ...form, new_password: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label required">Confirm New Password</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  value={form.confirm_password}
+                  onChange={(e) => setForm({ ...form, confirm_password: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-2)' }}>
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                {loading ? <div className="spinner" /> : <><CheckCircle size={16} /> Update Password</>}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

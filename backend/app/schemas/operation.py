@@ -82,6 +82,7 @@ class OperationListItem(BaseModel):
     created_at: datetime
     from_location: Optional[LocationBasicOut] = None
     to_location: Optional[LocationBasicOut] = None
+    lines: List[OperationLineOut] = []
 
     model_config = {"from_attributes": True}
 

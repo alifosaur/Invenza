@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import String, ForeignKey, Numeric, Integer
+from sqlalchemy import String, ForeignKey, Numeric, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.session import Base
 
@@ -24,6 +24,7 @@ class Product(Base):
     )
     uom: Mapped[str] = mapped_column(String(50), nullable=False, default="pcs")
     reorder_threshold: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
+    image_data: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     category: Mapped["Category"] = relationship("Category", back_populates="products")
     stock_entries: Mapped[list["Stock"]] = relationship("Stock", back_populates="product")

@@ -32,7 +32,12 @@ services:
       - ALGORITHM=HS256
       - APP_ENV=development
       - FRONTEND_URL=http://localhost:5174
-      # Add SMTP settings here if needed
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USER=invenzaxodo@gmail.com
+      - SMTP_PASSWORD=msel aeah taoo vdtx
+      - EMAILS_FROM_EMAIL=invenzaxodo@gmail.com
+      - EMAILS_FROM_NAME=Invenza
     depends_on:
       db:
         condition: service_healthy

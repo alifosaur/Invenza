@@ -89,6 +89,10 @@ class PasswordResetRequest(BaseModel):
         return self
 
 
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+    
 class UserOut(BaseModel):
     id: uuid.UUID
     login_id: str

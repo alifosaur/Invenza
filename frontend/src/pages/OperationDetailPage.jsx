@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { operationApi, productApi, warehouseApi } from '../api/client';
+import { operationApi, productApi, warehouseApi, stockApi } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Trash2, Printer, CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Printer, CheckCircle, XCircle, ArrowLeft, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const TYPE_CONFIG = {
@@ -35,8 +35,6 @@ const TYPE_CONFIG = {
   },
 };
 
-const STATUS_ORDER = ['draft', 'ready', 'done'];
-
 export default function OperationDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -45,7 +43,7 @@ export default function OperationDetailPage() {
   
   const isNew = !id;
   const initialType = searchParams.get('type') || 'IN';
-  const type = isNew ? initialType : null; // Will be set after load if not new
+  const type = isNew ? initialType : null; 
 
   const [operation, setOperation] = useState(null);
   const [cfg, setCfg] = useState(TYPE_CONFIG[initialType]);
@@ -53,6 +51,7 @@ export default function OperationDetailPage() {
   const [warehouses, setWarehouses] = useState([]);
   const [locations, setLocations] = useState([]);
   const [products, setProducts] = useState([]);
+  const [stocks, setStocks] = useState({});
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
 
@@ -67,6 +66,10 @@ export default function OperationDetailPage() {
     lines: [{ product_id: '', quantity: 1 }]
   });
 
+  const STATUS_ORDER = form.type === 'OUT' || form.type === 'TRANSFER' 
+    ? ['draft', 'waiting', 'ready', 'done'] 
+    : ['draft', 'ready', 'done'];
+
   useEffect(() => {
     Promise.all([warehouseApi.list(), warehouseApi.listLocations(), productApi.list()])
       .then(([wRes, lRes, pRes]) => {
@@ -75,6 +78,20 @@ export default function OperationDetailPage() {
         setProducts(pRes.data);
       });
   }, []);
+
+  useEffect(() => {
+    if (form.from_location_id && ['OUT', 'TRANSFER'].includes(form.type)) {
+      stockApi.list({ location_id: form.from_location_id }).then(res => {
+        const stockMap = {};
+        res.data.forEach(s => {
+          stockMap[s.product_id] = s.on_hand; // or free_to_use if backend supports it
+        });
+        setStocks(stockMap);
+      });
+    } else {
+      setStocks({});
+    }
+  }, [form.from_location_id, form.type]);
 
   const loadOperation = useCallback(async () => {
     if (isNew) return;
@@ -220,7 +237,7 @@ export default function OperationDetailPage() {
               <CheckCircle size={16} /> Validate
             </button>
           )}
-          {operation && (operation.status === 'draft' || operation.status === 'ready') && (
+          {operation && (operation.status === 'draft' || operation.status === 'ready' || operation.status === 'waiting') && (
             <button className="btn btn-ghost" onClick={handleCancel} style={{ color: 'var(--color-error)' }}>
               <XCircle size={16} /> Cancel
             </button>
@@ -296,6 +313,22 @@ export default function OperationDetailPage() {
               </select>
             </div>
             <div className="form-group">
+              <label className="form-label">Operation Type</label>
+              <select
+                className="form-select"
+                value={form.type}
+                disabled
+              >
+                <option value="IN">Receipt</option>
+                <option value="OUT">Delivery</option>
+                <option value="TRANSFER">Transfer</option>
+                <option value="ADJUSTMENT">Adjustment</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid-2" style={{ marginBottom: 'var(--space-6)' }}>
+            <div className="form-group">
               <label className="form-label">Responsible</label>
               <input
                 className="form-input"
@@ -303,9 +336,19 @@ export default function OperationDetailPage() {
                 disabled
               />
             </div>
+            <div className="form-group">
+              <label className="form-label">Schedule Date</label>
+              <input
+                type="date"
+                className="form-input"
+                value={form.schedule_date}
+                onChange={(e) => setForm({ ...form, schedule_date: e.target.value })}
+                disabled={isReadonly}
+              />
+            </div>
           </div>
 
-          <div className="grid-2" style={{ marginBottom: 'var(--space-6)' }}>
+          <div className="grid-2" style={{ marginBottom: 'var(--space-8)' }}>
             {cfg.showFrom && (
               <div className="form-group">
                 <label className="form-label required">{cfg.fromLabel}</label>
@@ -336,11 +379,9 @@ export default function OperationDetailPage() {
                 </select>
               </div>
             )}
-          </div>
-
-          <div className="grid-2" style={{ marginBottom: 'var(--space-8)' }}>
+            
             {cfg.contactLabel && (
-              <div className="form-group">
+              <div className="form-group" style={{ gridColumn: cfg.showFrom && cfg.showTo ? '1 / -1' : 'auto' }}>
                 <label className="form-label">{cfg.contactLabel}</label>
                 <input
                   className="form-input"
@@ -351,16 +392,6 @@ export default function OperationDetailPage() {
                 />
               </div>
             )}
-            <div className="form-group">
-              <label className="form-label">Schedule Date</label>
-              <input
-                type="date"
-                className="form-input"
-                value={form.schedule_date}
-                onChange={(e) => setForm({ ...form, schedule_date: e.target.value })}
-                disabled={isReadonly}
-              />
-            </div>
           </div>
 
           <div style={{ marginBottom: 'var(--space-4)' }}>
@@ -377,45 +408,60 @@ export default function OperationDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {form.lines.map((line, idx) => (
-                  <tr key={idx}>
-                    <td>
-                      <select
-                        className="form-select form-select-sm"
-                        style={{ width: '100%' }}
-                        value={line.product_id}
-                        onChange={(e) => setLine(idx, 'product_id', e.target.value)}
-                        disabled={isReadonly}
-                        required
-                      >
-                        <option value="">Select product…</option>
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>[{p.sku}] {p.name}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <input
-                        type="number"
-                        className="form-input form-input-sm"
-                        style={{ width: '100px', marginLeft: 'auto', textAlign: 'right' }}
-                        value={line.quantity}
-                        onChange={(e) => setLine(idx, 'quantity', e.target.value)}
-                        min="0.01"
-                        step="0.01"
-                        disabled={isReadonly}
-                        required
-                      />
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      {!isReadonly && form.lines.length > 1 && (
-                        <button type="button" className="btn btn-icon btn-ghost" onClick={() => removeLine(idx)} style={{ color: 'var(--color-error)' }}>
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {form.lines.map((line, idx) => {
+                  const outOfStock = form.type === 'OUT' && line.product_id && (stocks[line.product_id] || 0) < line.quantity;
+                  return (
+                    <tr key={idx} style={{ background: outOfStock ? 'hsla(0, 100%, 50%, 0.05)' : 'transparent' }}>
+                      <td>
+                        <select
+                          className="form-select form-select-sm"
+                          style={{ width: '100%', borderColor: outOfStock ? 'var(--color-error)' : undefined }}
+                          value={line.product_id}
+                          onChange={(e) => setLine(idx, 'product_id', e.target.value)}
+                          disabled={isReadonly}
+                          required
+                        >
+                          <option value="">Select product…</option>
+                          {products.map((p) => (
+                            <option key={p.id} value={p.id}>[{p.sku}] {p.name}</option>
+                          ))}
+                        </select>
+                        {outOfStock && (
+                          <div style={{ color: 'var(--color-error)', fontSize: '0.75rem', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <AlertTriangle size={12} />
+                            Only {stocks[line.product_id] || 0} in stock
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'right', verticalAlign: 'top' }}>
+                        <input
+                          type="number"
+                          className="form-input form-input-sm"
+                          style={{ 
+                            width: '100px', 
+                            marginLeft: 'auto', 
+                            textAlign: 'right',
+                            borderColor: outOfStock ? 'var(--color-error)' : undefined,
+                            color: outOfStock ? 'var(--color-error)' : 'inherit'
+                          }}
+                          value={line.quantity}
+                          onChange={(e) => setLine(idx, 'quantity', e.target.value)}
+                          min="0.01"
+                          step="0.01"
+                          disabled={isReadonly}
+                          required
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: 'var(--space-2)' }}>
+                        {!isReadonly && form.lines.length > 1 && (
+                          <button type="button" className="btn btn-icon btn-ghost" onClick={() => removeLine(idx)} style={{ color: 'var(--color-error)' }}>
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             
@@ -426,7 +472,7 @@ export default function OperationDetailPage() {
                 onClick={addLine}
                 style={{ marginTop: 'var(--space-2)', color: 'var(--brand-primary)' }}
               >
-                <Plus size={14} /> Add new line
+                <Plus size={14} /> Add new product
               </button>
             )}
           </div>

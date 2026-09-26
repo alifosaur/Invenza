@@ -27,6 +27,7 @@ class ProductCreate(BaseModel):
     initial_stock: Optional[float] = None
     initial_location_id: Optional[uuid.UUID] = None
     per_unit_cost: Optional[float] = 0.0
+    image_data: Optional[str] = None
 
     @field_validator("sku")
     @classmethod
@@ -42,6 +43,7 @@ class ProductUpdate(BaseModel):
     category_id: Optional[uuid.UUID] = None
     uom: Optional[str] = None
     reorder_threshold: Optional[float] = None
+    image_data: Optional[str] = None
 
 
 class ProductOut(BaseModel):
@@ -52,5 +54,6 @@ class ProductOut(BaseModel):
     reorder_threshold: Optional[float] = None
     current_stock: float = 0.0
     category: Optional[CategoryOut] = None
+    image_data: Optional[str] = None
 
     model_config = {"from_attributes": True}
