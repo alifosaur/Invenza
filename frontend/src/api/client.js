@@ -75,6 +75,7 @@ export default api;
 // ── Auth ─────────────────────────────────────────────────────
 export const authApi = {
   signup: (data) => api.post('/auth/signup', data),
+  requestSignupOtp: (email) => api.post('/auth/signup/otp', { email }),
   login: (data) => api.post('/auth/login', data),
   me: () => api.get('/auth/me'),
   requestOtp: (email) => api.post('/auth/otp/request', { email }),

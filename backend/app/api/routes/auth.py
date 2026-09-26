@@ -1,9 +1,11 @@
 import random
 import string
 import smtplib
+import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta, timezone
+from typing import Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +42,10 @@ from app.utils.rate_limiter import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# ── In-memory store for signup OTPs (email → {code, expires_at}) ──────────
+# We can't use the DB OTP table because the user doesn't exist yet during signup
+_signup_otps: Dict[str, dict] = {}
 
 # ── OTP email sender ───────────────────────────────────────────────────────
 def _send_otp_email(to_email: str, code: str) -> None:
@@ -80,33 +86,92 @@ def _send_otp_email(to_email: str, code: str) -> None:
         print(f"[SMTP ERROR] Failed to send OTP to {to_email}: {e}")
 
 
-# ── Signup ─────────────────────────────────────────────────────────────────
+# ── Signup OTP: request ────────────────────────────────────────────────────
+@router.post("/signup/otp", status_code=status.HTTP_200_OK)
+async def request_signup_otp(
+    payload: OTPRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Send an OTP to an email for signup verification."""
+    email = str(payload.email)
+
+    # Rate-limit OTP requests
+    check_rate_limit(f"signup_otp:{email}", request)
+
+    # Check email is not already registered
+    existing = await db.execute(select(User).where(User.email == email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email is already registered",
+        )
+
+    # Generate OTP
+    code = "".join(random.choices(string.digits, k=6))
+    expires = time.time() + (settings.OTP_EXPIRE_MINUTES * 60)
+    _signup_otps[email] = {"code": code, "expires_at": expires}
+
+    # Send email
+    _send_otp_email(email, code)
+
+    # Record for rate limiting
+    record_failure(f"signup_otp:{email}", request)
+
+    if settings.APP_ENV == "development":
+        return {"message": "OTP sent to your email", "dev_code": code}
+    return {"message": "OTP sent to your email"}
+
+
+# ── Signup (with OTP verification) ─────────────────────────────────────────
 @router.post("/signup", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def signup(payload: SignupRequest, db: AsyncSession = Depends(get_db)):
-    # Check login_id uniqueness
+    email = str(payload.email)
+
+    # 1. Verify the signup OTP
+    otp_code = payload.otp_code
+    if not otp_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email verification OTP is required",
+        )
+
+    stored = _signup_otps.get(email)
+    if not stored or stored["code"] != otp_code or stored["expires_at"] < time.time():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OTP",
+        )
+
+    # 2. Check login_id uniqueness
     existing_id = await db.execute(select(User).where(User.login_id == payload.login_id))
     if existing_id.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Login ID is already taken",
         )
-    # Check email uniqueness
-    existing_email = await db.execute(select(User).where(User.email == str(payload.email)))
+    # 3. Check email uniqueness
+    existing_email = await db.execute(select(User).where(User.email == email))
     if existing_email.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Email is already registered",
         )
 
+    # 4. Create user
     user = User(
         login_id=payload.login_id,
-        email=str(payload.email),
+        email=email,
         password_hash=get_password_hash(payload.password),
         role=payload.role,
     )
     db.add(user)
     await db.flush()
     await db.refresh(user)
+
+    # 5. Clean up the used OTP
+    _signup_otps.pop(email, None)
+
     return user
 
 

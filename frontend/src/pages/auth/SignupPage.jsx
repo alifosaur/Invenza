@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authApi } from '../../api/client';
-import { Eye, EyeOff, UserPlus, CheckCircle2, XCircle } from 'lucide-react';
+import { Eye, EyeOff, UserPlus, CheckCircle2, XCircle, Mail, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 /* ── Password rules ───────────────────────────────────────────────────────── */
@@ -74,9 +74,26 @@ export default function SignupPage() {
   const [serverError, setServerError] = useState('');
   const [focused, setFocused] = useState('');
 
+  // OTP step state
+  const [step, setStep] = useState('form'); // 'form' | 'otp'
+  const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
+  const [otpError, setOtpError] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const otpInputRefs = useRef([]);
+
   const allPasswordRulesPass = PASSWORD_RULES.every(({ test }) => test(form.password));
   const loginIdRulesPass = LOGIN_ID_RULES.every(({ test }) => test(form.login_id));
   const passwordsMatch = form.password === form.re_password;
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((c) => c - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   const validate = () => {
     const errs = {};
@@ -87,7 +104,8 @@ export default function SignupPage() {
     return errs;
   };
 
-  const handleSubmit = async (e) => {
+  // Step 1: Validate form and send OTP
+  const handleSendOtp = async (e) => {
     e.preventDefault();
     setServerError('');
     const errs = validate();
@@ -95,28 +113,97 @@ export default function SignupPage() {
     setFieldErrors({});
     setLoading(true);
     try {
-      await authApi.signup(form);
+      await authApi.requestSignupOtp(form.email);
+      toast.success(`OTP sent to ${form.email}`);
+      setStep('otp');
+      setResendCooldown(60);
+      // Focus first OTP input after render
+      setTimeout(() => otpInputRefs.current[0]?.focus(), 100);
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      if (typeof detail === 'string') {
+        if (detail.toLowerCase().includes('email')) setFieldErrors({ email: detail });
+        else setServerError(detail);
+      } else {
+        setServerError('Failed to send OTP. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Resend OTP
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setOtpLoading(true);
+    try {
+      await authApi.requestSignupOtp(form.email);
+      toast.success('OTP resent!');
+      setResendCooldown(60);
+      setOtpCode(['', '', '', '', '', '']);
+      setOtpError('');
+      otpInputRefs.current[0]?.focus();
+    } catch (err) {
+      setOtpError(err.response?.data?.detail || 'Failed to resend OTP');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // OTP input handler
+  const handleOtpChange = (index, value) => {
+    if (!/^\d*$/.test(value)) return; // digits only
+    const newOtp = [...otpCode];
+    newOtp[index] = value.slice(-1); // take last digit
+    setOtpCode(newOtp);
+    setOtpError('');
+    // Auto-advance focus
+    if (value && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otpCode[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasted.length === 6) {
+      setOtpCode(pasted.split(''));
+      otpInputRefs.current[5]?.focus();
+    }
+  };
+
+  // Step 2: Submit form with OTP
+  const handleVerifyAndSignup = async (e) => {
+    e.preventDefault();
+    const code = otpCode.join('');
+    if (code.length !== 6) {
+      setOtpError('Please enter the complete 6-digit OTP');
+      return;
+    }
+
+    setOtpLoading(true);
+    setOtpError('');
+    try {
+      await authApi.signup({ ...form, otp_code: code });
       toast.success('Account created! Please sign in.');
       navigate('/login');
     } catch (err) {
       const detail = err.response?.data?.detail;
       if (typeof detail === 'string') {
-        // Specific field errors from backend
-        if (detail.toLowerCase().includes('login id')) setFieldErrors({ login_id: detail });
-        else if (detail.toLowerCase().includes('email')) setFieldErrors({ email: detail });
-        else setServerError(detail);
+        setOtpError(detail);
       } else if (Array.isArray(detail)) {
-        const errs = {};
-        detail.forEach((d) => {
-          const field = d.loc?.[d.loc.length - 1];
-          if (field) errs[field] = d.msg;
-        });
-        setFieldErrors(errs);
+        setOtpError(detail.map(d => d.msg).join(', '));
       } else {
-        setServerError('Signup failed. Please try again.');
+        setOtpError('Signup failed. Please try again.');
       }
     } finally {
-      setLoading(false);
+      setOtpLoading(false);
     }
   };
 
@@ -136,6 +223,117 @@ export default function SignupPage() {
     </button>
   );
 
+  // ── OTP Verification Step ───────────────────────────────────────────
+  if (step === 'otp') {
+    return (
+      <div className="auth-bg">
+        <div className="auth-card" style={{ maxWidth: 440 }}>
+          {/* Logo */}
+          <div style={{ textAlign: 'center', marginBottom: 'var(--space-8)' }}>
+            <div style={{
+              width: 56, height: 56,
+              background: 'var(--gradient-brand)',
+              borderRadius: 'var(--radius-lg)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto var(--space-4)',
+              fontSize: '1.5rem', fontWeight: 800, color: '#fff',
+            }}>
+              <Mail size={28} />
+            </div>
+            <h1 style={{ fontSize: '1.75rem', marginBottom: 6 }}>Verify your email</h1>
+            <p className="text-muted text-sm">
+              We've sent a 6-digit code to <strong style={{ color: 'var(--text-primary)' }}>{form.email}</strong>
+            </p>
+          </div>
+
+          <form onSubmit={handleVerifyAndSignup} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            {/* OTP Input Boxes */}
+            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'center' }} onPaste={handleOtpPaste}>
+              {otpCode.map((digit, i) => (
+                <input
+                  key={i}
+                  ref={(el) => (otpInputRefs.current[i] = el)}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleOtpChange(i, e.target.value)}
+                  onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                  style={{
+                    width: 52, height: 56,
+                    textAlign: 'center',
+                    fontSize: '1.5rem',
+                    fontWeight: 700,
+                    border: `2px solid ${otpError ? 'var(--color-error)' : digit ? 'var(--brand-primary)' : 'var(--border-strong)'}`,
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-surface)',
+                    color: 'var(--text-primary)',
+                    outline: 'none',
+                    transition: 'border-color 0.2s',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = 'var(--brand-primary)'}
+                  onBlur={(e) => e.target.style.borderColor = digit ? 'var(--brand-primary)' : 'var(--border-strong)'}
+                />
+              ))}
+            </div>
+
+            {/* OTP Error */}
+            {otpError && (
+              <div style={{
+                padding: 'var(--space-3) var(--space-4)',
+                background: 'hsla(0,80%,60%,0.1)',
+                border: '1px solid hsla(0,80%,60%,0.25)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--color-error)', fontSize: '0.875rem',
+                textAlign: 'center',
+              }}>{otpError}</div>
+            )}
+
+            {/* Verify button */}
+            <button
+              type="submit"
+              className="btn btn-primary btn-lg w-full"
+              disabled={otpLoading || otpCode.join('').length !== 6}
+              style={{ justifyContent: 'center' }}
+            >
+              {otpLoading ? <div className="spinner" /> : <><CheckCircle2 size={17} /> Verify & Create Account</>}
+            </button>
+
+            {/* Resend & Back */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.875rem' }}>
+              <button
+                type="button"
+                onClick={() => { setStep('form'); setOtpCode(['', '', '', '', '', '']); setOtpError(''); }}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4,
+                  fontFamily: 'inherit', fontSize: 'inherit',
+                }}
+              >
+                <ArrowLeft size={14} /> Back
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={resendCooldown > 0 || otpLoading}
+                style={{
+                  background: 'none', border: 'none', cursor: resendCooldown > 0 ? 'default' : 'pointer',
+                  color: resendCooldown > 0 ? 'var(--text-disabled)' : 'var(--brand-primary)',
+                  fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 500,
+                }}
+              >
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend OTP'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Form Step ───────────────────────────────────────────────────────
   return (
     <div className="auth-bg">
       <div className="auth-card" style={{ maxWidth: 480 }}>
@@ -147,14 +345,13 @@ export default function SignupPage() {
             borderRadius: 'var(--radius-lg)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto var(--space-4)',
-            boxShadow: '0 8px 32px hsla(231,100%,65%,0.45)',
             fontSize: '1.5rem', fontWeight: 800, color: '#fff',
           }}>Iz</div>
           <h1 style={{ fontSize: '1.75rem', marginBottom: 6 }}>Create account</h1>
           <p className="text-muted text-sm">Join Invenza to manage your inventory</p>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {/* Login ID + Role */}
           <div className="grid-2">
             <div className="form-group">
@@ -288,12 +485,12 @@ export default function SignupPage() {
             disabled={loading}
             style={{ justifyContent: 'center', marginTop: 'var(--space-1)' }}
           >
-            {loading ? <div className="spinner" /> : <><UserPlus size={17} /> Create Account</>}
+            {loading ? <div className="spinner" /> : <><Mail size={17} /> Send Verification OTP</>}
           </button>
 
           <p style={{ textAlign: 'center', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
             Already have an account?{' '}
-            <Link to="/login" style={{ color: 'var(--brand-primary-light)', fontWeight: 500 }}>Sign in</Link>
+            <Link to="/login" style={{ color: 'var(--brand-primary)', fontWeight: 500 }}>Sign in</Link>
           </p>
         </form>
       </div>

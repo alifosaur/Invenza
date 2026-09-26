@@ -62,9 +62,9 @@ export default function OperationsDashboardPage() {
                 </div>
               </div>
               <div style={{ marginTop: 'var(--space-2)' }}>
-                {stats.receipts.to_do > 0 ? (
+                {(stats?.receipts?.to_do > 0 || stats?.pending_receipts > 0) ? (
                   <span className="badge badge-waiting" style={{ fontSize: '0.875rem', padding: '6px 12px' }}>
-                    {stats.receipts.to_do} to receive
+                    {stats?.receipts?.to_do || stats?.pending_receipts || 0} to receive
                   </span>
                 ) : (
                   <span className="text-muted" style={{ fontSize: '0.875rem' }}>No pending receipts</span>
@@ -87,9 +87,9 @@ export default function OperationsDashboardPage() {
                 </div>
               </div>
               <div style={{ marginTop: 'var(--space-2)' }}>
-                {stats.deliveries.to_do > 0 ? (
+                {(stats?.deliveries?.to_do > 0 || stats?.pending_deliveries > 0) ? (
                   <span className="badge badge-waiting" style={{ fontSize: '0.875rem', padding: '6px 12px' }}>
-                    {stats.deliveries.to_do} to deliver
+                    {stats?.deliveries?.to_do || stats?.pending_deliveries || 0} to deliver
                   </span>
                 ) : (
                   <span className="text-muted" style={{ fontSize: '0.875rem' }}>No pending deliveries</span>
@@ -112,9 +112,9 @@ export default function OperationsDashboardPage() {
                 </div>
               </div>
               <div style={{ marginTop: 'var(--space-2)' }}>
-                {stats.adjustments.to_do > 0 ? (
+                {(stats?.adjustments?.to_do > 0 || stats?.pending_adjustments > 0) ? (
                   <span className="badge badge-waiting" style={{ fontSize: '0.875rem', padding: '6px 12px' }}>
-                    {stats.adjustments.to_do} pending
+                    {stats?.adjustments?.to_do || stats?.pending_adjustments || 0} pending
                   </span>
                 ) : (
                   <span className="text-muted" style={{ fontSize: '0.875rem' }}>No pending adjustments</span>

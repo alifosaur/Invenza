@@ -100,7 +100,7 @@ export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || '/';
+  const from = location.state?.from?.pathname === '/' ? '/dashboard' : (location.state?.from?.pathname || '/dashboard');
   const timerRef = useRef(null);
 
   const [form, setForm] = useState({ login_id: '', password: '' });

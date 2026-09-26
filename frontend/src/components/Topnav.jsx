@@ -88,7 +88,7 @@ export default function Topnav() {
           </div>
 
           <nav className="topnav-nav">
-            <NavLink to="/" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <NavLink to="/dashboard" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               Dashboard
             </NavLink>
             <NavLink to="/operations" className={({ isActive }) => `nav-item ${(isActive || isOpActive) ? 'active' : ''}`}>
@@ -103,7 +103,9 @@ export default function Topnav() {
             <NavLink to="/move-history" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               Move History
             </NavLink>
-            <Dropdown label="Settings" items={SETTINGS_NAV} isActive={isSettingsActive} />
+            <NavLink to="/settings" className={({ isActive }) => `nav-item ${(isActive || isSettingsActive) ? 'active' : ''}`}>
+              Settings
+            </NavLink>
           </nav>
         </div>
 

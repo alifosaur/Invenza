@@ -8,6 +8,7 @@ import Topnav from './components/Topnav';
 import LoginPage from './pages/auth/LoginPage';
 import SignupPage from './pages/auth/SignupPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import LandingPage from './pages/LandingPage';
 
 // App pages
 import DashboardPage from './pages/DashboardPage';
@@ -23,6 +24,7 @@ import OperationDetailPage from './pages/OperationDetailPage';
 import MoveHistoryPage from './pages/MoveHistoryPage';
 import WarehousesPage from './pages/settings/WarehousesPage';
 import LocationsPage from './pages/settings/LocationsPage';
+import SettingsPage from './pages/settings/SettingsPage';
 import ProfilePage from './pages/ProfilePage';
 
 function AppLayout() {
@@ -58,6 +60,7 @@ export default function App() {
         />
         <Routes>
           {/* Public */}
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -70,7 +73,7 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<DashboardPage />} />
+            <Route path="dashboard" element={<DashboardPage />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="stock" element={<StockPage />} />
             <Route path="receipts" element={<ReceiptsPage />} />
@@ -83,12 +86,13 @@ export default function App() {
             <Route path="operations/new" element={<OperationDetailPage />} />
             <Route path="operations/:id" element={<OperationDetailPage />} />
             <Route path="move-history" element={<MoveHistoryPage />} />
+            <Route path="settings" element={<SettingsPage />} />
             <Route path="settings/warehouses" element={<WarehousesPage />} />
             <Route path="settings/locations" element={<LocationsPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

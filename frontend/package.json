@@ -13,6 +13,7 @@
     "axios": "^1.20.0",
     "browser-image-compression": "^2.0.2",
     "date-fns": "^4.4.0",
+    "framer-motion": "^13.4.4",
     "lucide-react": "^1.48.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -21,10 +22,16 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "autoprefixer": "^10.6.1",
+    "clsx": "^2.1.1",
     "oxlint": "^1.81.0",
+    "postcss": "^8.5.28",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^4.3.3",
     "vite": "^8.3.0"
   }
 }

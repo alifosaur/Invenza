@@ -2,6 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db
 from app.models.warehouse import Warehouse, Location
@@ -91,7 +92,7 @@ async def list_locations(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    query = select(Location)
+    query = select(Location).options(selectinload(Location.warehouse))
     if warehouse_id:
         query = query.where(Location.warehouse_id == warehouse_id)
     result = await db.execute(query)
@@ -107,7 +108,7 @@ async def create_location(
     loc = Location(**payload.model_dump())
     db.add(loc)
     await db.flush()
-    await db.refresh(loc)
+    await db.refresh(loc, attribute_names=['warehouse'])
     return loc
 
 
@@ -118,7 +119,7 @@ async def update_location(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_manager),
 ):
-    result = await db.execute(select(Location).where(Location.id == location_id))
+    result = await db.execute(select(Location).options(selectinload(Location.warehouse)).where(Location.id == location_id))
     loc = result.scalar_one_or_none()
     if not loc:
         raise HTTPException(status_code=404, detail="Location not found")

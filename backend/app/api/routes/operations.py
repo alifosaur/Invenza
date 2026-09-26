@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.db.session import get_db
 from app.models.operation import Operation, OperationLine, OperationType, OperationStatus
 from app.models.stock import Stock
+from app.models.product import Product
 from app.schemas.operation import (
     OperationCreate, OperationUpdate, OperationOut,
     OperationListItem, PaginatedOperations,
@@ -49,7 +51,8 @@ async def list_operations(
     query = select(Operation).options(
         selectinload(Operation.from_location),
         selectinload(Operation.to_location),
-        selectinload(Operation.lines).selectinload(OperationLine.product)
+        selectinload(Operation.lines).selectinload(OperationLine.product).selectinload(Product.category),
+        selectinload(Operation.lines).selectinload(OperationLine.product).selectinload(Product.stock_entries)
     )
     if type:
         query = query.where(Operation.type == type)
@@ -85,6 +88,10 @@ async def create_operation(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Date validation: do not allow past dates
+    if payload.schedule_date and payload.schedule_date < date.today():
+        raise HTTPException(status_code=400, detail="Schedule date cannot be in the past")
+
     # Get warehouse short code for reference
     from app.models.warehouse import Warehouse
     wh_result = await db.execute(select(Warehouse).where(Warehouse.id == payload.warehouse_id))
@@ -131,6 +138,7 @@ async def create_operation(
 
     # Auto-check delivery status
     if payload.type == OperationType.OUT:
+        await db.refresh(operation, ["lines"])
         new_status = await check_delivery_stock(db, operation)
         operation.status = new_status
         await db.flush()
@@ -138,8 +146,17 @@ async def create_operation(
     elif payload.type in (OperationType.IN, OperationType.TRANSFER, OperationType.ADJUSTMENT):
         operation.status = OperationStatus.ready
 
-    await db.refresh(operation)
-    return operation
+    result = await db.execute(
+        select(Operation)
+        .options(
+            selectinload(Operation.from_location),
+            selectinload(Operation.to_location),
+            selectinload(Operation.lines).selectinload(OperationLine.product).selectinload(Product.category),
+            selectinload(Operation.lines).selectinload(OperationLine.product).selectinload(Product.stock_entries)
+        )
+        .where(Operation.id == operation.id)
+    )
+    return result.scalar_one()
 
 
 # ── Get single operation ───────────────────────────────────────────────────
@@ -152,7 +169,12 @@ async def get_operation(
 ):
     result = await db.execute(
         select(Operation)
-        .options(selectinload(Operation.lines).selectinload(OperationLine.product))
+        .options(
+            selectinload(Operation.from_location),
+            selectinload(Operation.to_location),
+            selectinload(Operation.lines).selectinload(OperationLine.product).selectinload(Product.category),
+            selectinload(Operation.lines).selectinload(OperationLine.product).selectinload(Product.stock_entries)
+        )
         .where(Operation.id == operation_id)
     )
     op = result.scalar_one_or_none()
@@ -171,11 +193,22 @@ async def update_operation(
     _: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Operation).options(selectinload(Operation.lines)).where(Operation.id == operation_id)
+        select(Operation)
+        .options(
+            selectinload(Operation.from_location),
+            selectinload(Operation.to_location),
+            selectinload(Operation.lines).selectinload(OperationLine.product).selectinload(Product.category),
+            selectinload(Operation.lines).selectinload(OperationLine.product).selectinload(Product.stock_entries)
+        )
+        .where(Operation.id == operation_id)
     )
     op = result.scalar_one_or_none()
     if not op:
         raise HTTPException(status_code=404, detail="Operation not found")
+
+    # Date validation: do not allow past dates if date is being changed
+    if payload.schedule_date and payload.schedule_date != op.schedule_date and payload.schedule_date < date.today():
+        raise HTTPException(status_code=400, detail="Schedule date cannot be in the past")
     if op.status == OperationStatus.done:
         raise HTTPException(status_code=409, detail="Cannot modify a completed operation")
 
@@ -197,10 +230,18 @@ async def update_operation(
     await db.flush()
 
     if op.type == OperationType.OUT:
+        await db.refresh(op, ["lines"])
         op.status = await check_delivery_stock(db, op)
 
-    await db.refresh(op)
-    return op
+    result = await db.execute(select(Operation)
+        .options(
+            selectinload(Operation.from_location),
+            selectinload(Operation.to_location),
+            selectinload(Operation.lines).selectinload(OperationLine.product).selectinload(Product.category),
+            selectinload(Operation.lines).selectinload(OperationLine.product).selectinload(Product.stock_entries)
+        )
+        .where(Operation.id == op.id))
+    return result.scalar_one()
 
 
 # ── Validate operation ─────────────────────────────────────────────────────
@@ -213,7 +254,12 @@ async def validate_operation(
 ):
     result = await db.execute(
         select(Operation)
-        .options(selectinload(Operation.lines))
+        .options(
+            selectinload(Operation.from_location),
+            selectinload(Operation.to_location),
+            selectinload(Operation.lines).selectinload(OperationLine.product).selectinload(Product.category),
+            selectinload(Operation.lines).selectinload(OperationLine.product).selectinload(Product.stock_entries)
+        )
         .where(Operation.id == operation_id)
         .with_for_update()
     )
@@ -239,7 +285,15 @@ async def validate_operation(
 
     op.status = OperationStatus.done
     await db.flush()
-    await db.refresh(op)
+    result = await db.execute(select(Operation)
+        .options(
+            selectinload(Operation.from_location),
+            selectinload(Operation.to_location),
+            selectinload(Operation.lines).selectinload(OperationLine.product).selectinload(Product.category),
+            selectinload(Operation.lines).selectinload(OperationLine.product).selectinload(Product.stock_entries)
+        )
+        .where(Operation.id == op.id))
+    op = result.scalar_one()
 
     # Broadcast KPI update via WebSocket
     await ws_manager.broadcast({"event": "operation_validated", "operation_id": str(op.id)})

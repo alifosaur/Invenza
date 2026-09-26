@@ -18,6 +18,7 @@ class SignupRequest(BaseModel):
     email: EmailStr
     password: str
     re_password: str
+    otp_code: str = ""
     role: UserRole = UserRole.warehouse_staff
 
     @field_validator("login_id")

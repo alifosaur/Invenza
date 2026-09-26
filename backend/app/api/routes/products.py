@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from datetime import datetime
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill
-from app.models.location import Location
+from app.models.warehouse import Location
 from app.models.warehouse import Warehouse
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -102,52 +102,6 @@ async def create_product(
     return product
 
 
-@router.get("/products/{product_id}", response_model=ProductOut)
-async def get_product(
-    product_id: str,
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(Product).options(selectinload(Product.category), selectinload(Product.stock_entries)).where(Product.id == product_id)
-    )
-    product = result.scalar_one_or_none()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return product
-
-
-@router.put("/products/{product_id}", response_model=ProductOut)
-async def update_product(
-    product_id: str,
-    payload: ProductUpdate,
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_manager),
-):
-    result = await db.execute(select(Product).where(Product.id == product_id))
-    product = result.scalar_one_or_none()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
-        setattr(product, field, value)
-    await db.flush()
-    await db.refresh(product)
-    return product
-
-
-@router.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_product(
-    product_id: str,
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_manager),
-):
-    result = await db.execute(select(Product).where(Product.id == product_id))
-    product = result.scalar_one_or_none()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    await db.delete(product)
-
-
 # ── Excel Import / Export ──────────────────────────────────────────────────
 
 @router.get("/products/template")
@@ -156,7 +110,7 @@ async def get_excel_template(_: User = Depends(get_current_user)):
     ws = wb.active
     ws.title = "Inventory"
 
-    headers = ["SKU", "Product Name", "Category", "Unit of Measure", "Quantity", "Unit Price", "Reorder Threshold", "Image URL"]
+    headers = ["SKU", "Product Name", "Category", "Unit of Measure", "Current Stock", "Unit Price", "Reorder Threshold", "Image URL"]
     ws.append(headers)
 
     header_font = Font(bold=True, color="FFFFFF")
@@ -172,7 +126,7 @@ async def get_excel_template(_: User = Depends(get_current_user)):
     ws_inst.append(["Product Name", "Yes", "Name of the product"])
     ws_inst.append(["Category", "No", "Product category (will be created if missing)"])
     ws_inst.append(["Unit of Measure", "No", "e.g., pcs, kg, ml"])
-    ws_inst.append(["Quantity", "No", "Initial stock quantity (numeric)"])
+    ws_inst.append(["Current Stock", "No", "Initial stock quantity (numeric)"])
     ws_inst.append(["Unit Price", "No", "Price per unit (numeric)"])
     ws_inst.append(["Reorder Threshold", "No", "Minimum stock level for alerts (numeric)"])
     ws_inst.append(["Image URL", "No", "Public URL to product image"])
@@ -214,7 +168,7 @@ async def export_products_excel(
     ws = wb.active
     ws.title = "Inventory"
     
-    headers = ["SKU", "Product Name", "Category", "Quantity", "Unit Price", "Total Value", "Reorder Threshold", "Image URL", "Created At"]
+    headers = ["SKU", "Product Name", "Category", "Current Stock", "Unit Price", "Total Value", "Reorder Threshold", "Image URL", "Created At"]
     ws.append(headers)
     
     header_font = Font(bold=True)
@@ -334,7 +288,7 @@ async def import_products_excel(
         name = row.get("product name")
         cat_name = row.get("category")
         uom = row.get("unit of measure")
-        qty = row.get("quantity")
+        qty = row.get("current stock") if row.get("current stock") is not None else row.get("quantity")
         price = row.get("unit price")
         reorder = row.get("reorder threshold")
         image_url = row.get("image url")
@@ -458,7 +412,7 @@ async def import_products_excel(
             db.add(p)
             await db.flush()
             
-            qty = r.get("quantity")
+            qty = r.get("current stock") if r.get("current stock") is not None else r.get("quantity")
             price = r.get("unit price")
             if qty and float(qty) > 0 and default_location:
                 stock = Stock(
@@ -475,3 +429,51 @@ async def import_products_excel(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Database transaction failed: {str(e)}")
+
+
+@router.get("/products/{product_id}", response_model=ProductOut)
+async def get_product(
+    product_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Product).options(selectinload(Product.category), selectinload(Product.stock_entries)).where(Product.id == product_id)
+    )
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+
+@router.put("/products/{product_id}", response_model=ProductOut)
+async def update_product(
+    product_id: str,
+    payload: ProductUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_manager),
+):
+    result = await db.execute(select(Product).where(Product.id == product_id))
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    for field, value in payload.model_dump(exclude_none=True).items():
+        setattr(product, field, value)
+    await db.flush()
+    await db.refresh(product)
+    return product
+
+
+@router.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product(
+    product_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_manager),
+):
+    result = await db.execute(select(Product).where(Product.id == product_id))
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    await db.delete(product)
+
+

@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { operationApi, productApi, warehouseApi, stockApi } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Trash2, Printer, CheckCircle, XCircle, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Printer, CheckCircle, XCircle, ArrowLeft, AlertTriangle, Home, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { ReceiptPrinter } from '../components/ReceiptPrinter';
 
 const TYPE_CONFIG = {
   IN: {
@@ -54,6 +55,8 @@ export default function OperationDetailPage() {
   const [stocks, setStocks] = useState({});
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printStage, setPrintStage] = useState('processing');
 
   const [form, setForm] = useState({
     type: initialType,
@@ -197,7 +200,15 @@ export default function OperationDetailPage() {
   };
 
   const handlePrint = () => {
-    window.print();
+    setIsPrinting(true);
+    setPrintStage('processing');
+    
+    setTimeout(() => {
+      setPrintStage('printing');
+      setTimeout(() => {
+        setPrintStage('complete');
+      }, 4000);
+    }, 1500);
   };
 
   if (loading) {
@@ -341,6 +352,7 @@ export default function OperationDetailPage() {
               <input
                 type="date"
                 className="form-input"
+                min={new Date().toISOString().split('T')[0]}
                 value={form.schedule_date}
                 onChange={(e) => setForm({ ...form, schedule_date: e.target.value })}
                 disabled={isReadonly}
@@ -409,27 +421,36 @@ export default function OperationDetailPage() {
               </thead>
               <tbody>
                 {form.lines.map((line, idx) => {
-                  const outOfStock = form.type === 'OUT' && line.product_id && (stocks[line.product_id] || 0) < line.quantity;
+                  const available = stocks[line.product_id] || 0;
+                  const isOutType = form.type === 'OUT' || form.type === 'TRANSFER';
+                  const outOfStock = isOutType && form.from_location_id && line.product_id && available < Number(line.quantity || 0);
                   return (
                     <tr key={idx} style={{ background: outOfStock ? 'hsla(0, 100%, 50%, 0.05)' : 'transparent' }}>
                       <td>
-                        <select
-                          className="form-select form-select-sm"
-                          style={{ width: '100%', borderColor: outOfStock ? 'var(--color-error)' : undefined }}
-                          value={line.product_id}
-                          onChange={(e) => setLine(idx, 'product_id', e.target.value)}
-                          disabled={isReadonly}
-                          required
-                        >
-                          <option value="">Select product…</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>[{p.sku}] {p.name}</option>
-                          ))}
-                        </select>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <select
+                            className="form-select form-select-sm"
+                            style={{ width: '100%', borderColor: outOfStock ? 'var(--color-error)' : undefined }}
+                            value={line.product_id}
+                            onChange={(e) => setLine(idx, 'product_id', e.target.value)}
+                            disabled={isReadonly}
+                            required
+                          >
+                            <option value="">Select product…</option>
+                            {products.map((p) => (
+                              <option key={p.id} value={p.id}>[{p.sku}] {p.name}</option>
+                            ))}
+                          </select>
+                          {isOutType && line.product_id && form.from_location_id && (
+                            <span style={{ fontSize: '0.75rem', color: outOfStock ? 'var(--color-error)' : 'var(--text-muted)' }}>
+                              Available: {available}
+                            </span>
+                          )}
+                        </div>
                         {outOfStock && (
                           <div style={{ color: 'var(--color-error)', fontSize: '0.75rem', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
                             <AlertTriangle size={12} />
-                            Only {stocks[line.product_id] || 0} in stock
+                            Only {stocks[line.product_id] || 0} available at this location
                           </div>
                         )}
                       </td>
@@ -472,12 +493,148 @@ export default function OperationDetailPage() {
                 onClick={addLine}
                 style={{ marginTop: 'var(--space-2)', color: 'var(--brand-primary)' }}
               >
-                <Plus size={14} /> Add new product
+                <Plus size={14} /> Add line item
               </button>
             )}
           </div>
         </form>
       </div>
+
+      {isPrinting && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <div style={{ position: 'relative', width: '100%', maxWidth: '28rem', display: 'flex', justifyContent: 'center' }}>
+            <ReceiptPrinter.Root stage={printStage} animate={true}>
+              <ReceiptPrinter.Machine>
+                <ReceiptPrinter.Header>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}>
+                    <Package size={18} />
+                  </div>
+                  <button 
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ borderRadius: '9999px' }}
+                    onClick={() => setIsPrinting(false)}
+                  >
+                    <Home size={14} />
+                    Home
+                  </button>
+                </ReceiptPrinter.Header>
+                <ReceiptPrinter.Screen>
+                  <div className="mb-4 flex items-start justify-between">
+                    <div>
+                      <div className="font-semibold">{cfg.label} Order</div>
+                      <div className="text-sm opacity-70 text-grayscale-9 dark:text-grayscale-10">{form.type} - {operation?.reference || 'DRAFT'}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm opacity-70 text-grayscale-9 dark:text-grayscale-10">Total items</div>
+                      <div className="font-semibold text-lg">{form.lines.reduce((acc, l) => acc + (Number(l.quantity) || 0), 0)}</div>
+                    </div>
+                  </div>
+                  <ReceiptPrinter.Status />
+                </ReceiptPrinter.Screen>
+                <ReceiptPrinter.Output>
+                  <ReceiptPrinter.Paper>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem', marginTop: '1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '48px', height: '48px', background: 'var(--text-primary)', color: 'var(--bg-base)', borderRadius: '4px' }}>
+                        <Package size={28} />
+                      </div>
+                    </div>
+                    
+                    <hr className="my-6 border-t border-dashed border-grayscale-12/30 dark:border-grayscale-1/30" />
+                    
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="font-bold tracking-widest uppercase">{cfg.label}</div>
+                      <div className="font-bold">{form.lines.reduce((acc, l) => acc + (Number(l.quantity) || 0), 0)}</div>
+                    </div>
+                    <div className="text-sm opacity-70">{operation?.reference || 'DRAFT'}</div>
+                    
+                    <hr className="my-6 border-t border-dashed border-grayscale-12/30 dark:border-grayscale-1/30" />
+                    
+                    <table className="w-full text-sm mb-6">
+                      <tbody>
+                        {form.lines.map((l, i) => {
+                          const p = products.find(prod => prod.id === l.product_id);
+                          return (
+                            <tr key={i}>
+                              <td className="py-1">{p ? p.name : 'Unknown'}</td>
+                              <td className="py-1 text-right">{l.quantity}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+
+                    <div className="flex justify-between items-center mb-6 font-bold text-lg">
+                      <div className="tracking-widest uppercase">TOTAL ITEMS</div>
+                      <div>{form.lines.reduce((acc, l) => acc + (Number(l.quantity) || 0), 0)}</div>
+                    </div>
+
+                    <hr className="my-6 border-t border-dashed border-grayscale-12/30 dark:border-grayscale-1/30" />
+
+                    <table className="w-full text-xs opacity-80 mb-10">
+                      <tbody>
+                        <tr>
+                          <td className="py-1">Order</td>
+                          <td className="py-1 text-right">{operation?.reference || 'DRAFT'}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-1">Created by</td>
+                          <td className="py-1 text-right">{user?.login_id || 'System'}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-1">Date</td>
+                          <td className="py-1 text-right">
+                            {operation?.created_at ? new Date(operation.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).toUpperCase() : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).toUpperCase()}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    <div className="flex flex-col items-center pb-8">
+                      <svg width="180" height="40" viewBox="0 0 180 40">
+                        <rect x="0" y="0" width="4" height="40" fill="currentColor" />
+                        <rect x="6" y="0" width="2" height="40" fill="currentColor" />
+                        <rect x="12" y="0" width="6" height="40" fill="currentColor" />
+                        <rect x="22" y="0" width="4" height="40" fill="currentColor" />
+                        <rect x="30" y="0" width="2" height="40" fill="currentColor" />
+                        <rect x="34" y="0" width="8" height="40" fill="currentColor" />
+                        <rect x="46" y="0" width="4" height="40" fill="currentColor" />
+                        <rect x="54" y="0" width="2" height="40" fill="currentColor" />
+                        <rect x="60" y="0" width="6" height="40" fill="currentColor" />
+                        <rect x="70" y="0" width="2" height="40" fill="currentColor" />
+                        <rect x="76" y="0" width="8" height="40" fill="currentColor" />
+                        <rect x="88" y="0" width="4" height="40" fill="currentColor" />
+                        <rect x="94" y="0" width="2" height="40" fill="currentColor" />
+                        <rect x="100" y="0" width="6" height="40" fill="currentColor" />
+                        <rect x="110" y="0" width="4" height="40" fill="currentColor" />
+                        <rect x="118" y="0" width="2" height="40" fill="currentColor" />
+                        <rect x="122" y="0" width="8" height="40" fill="currentColor" />
+                        <rect x="134" y="0" width="4" height="40" fill="currentColor" />
+                        <rect x="142" y="0" width="2" height="40" fill="currentColor" />
+                        <rect x="148" y="0" width="6" height="40" fill="currentColor" />
+                        <rect x="158" y="0" width="2" height="40" fill="currentColor" />
+                        <rect x="164" y="0" width="8" height="40" fill="currentColor" />
+                        <rect x="176" y="0" width="4" height="40" fill="currentColor" />
+                      </svg>
+                      <div className="mt-2 text-[10px] tracking-widest opacity-60">
+                        {operation?.reference || 'DRAFT-0000'}
+                      </div>
+                    </div>
+                  </ReceiptPrinter.Paper>
+                </ReceiptPrinter.Output>
+              </ReceiptPrinter.Machine>
+            </ReceiptPrinter.Root>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
